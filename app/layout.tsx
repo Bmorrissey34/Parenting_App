@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
+import { ChildrenProvider } from '@/lib/children-context'
 import { LogsProvider } from '@/lib/logs-context'
 import './globals.css'
 
@@ -48,10 +49,12 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
         <AuthProvider>
-          <LogsProvider>
-            {children}
-            <Analytics />
-          </LogsProvider>
+          <ChildrenProvider>
+            <LogsProvider>
+              {children}
+              <Analytics />
+            </LogsProvider>
+          </ChildrenProvider>
         </AuthProvider>
       </body>
     </html>

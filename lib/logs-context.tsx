@@ -35,6 +35,9 @@ interface LogsContextType {
   timelineEntries: TimelineEntry[]
   diaryEntries: DiaryEntry[]
   growthData: GrowthDataPoint[]
+  sleepProgress: number
+  feedingProgress: number
+  presenceProgress: number
 }
 
 const LogsContext = createContext<LogsContextType | undefined>(undefined)
@@ -124,7 +127,7 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         case 'sleep':
           return {
             id: log.id,
-            type: 'sleep',
+            type: 'sleep' as const,
             title: 'Sleep',
             time,
             details: `${log.data.duration || 'N/A'} minutes`,
@@ -132,7 +135,7 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         case 'feeding':
           return {
             id: log.id,
-            type: 'feeding',
+            type: 'feeding' as const,
             title: 'Feeding',
             time,
             details: `${log.data.amount || 0}ml`,
@@ -140,7 +143,7 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         case 'play':
           return {
             id: log.id,
-            type: 'play',
+            type: 'play' as const,
             title: 'Play Time',
             time,
             details: log.data.presenceMode ? 'Presence Mode' : 'Regular play',
@@ -148,7 +151,7 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         case 'diary':
           return {
             id: log.id,
-            type: 'diary',
+            type: 'diary' as const,
             title: (log.data.note as string) || 'Diary Entry',
             time,
             tags: (log.data.tags as string[]) || [],
@@ -185,6 +188,36 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
       height: log.data.height as number,
     }))
 
+  // Calculate sleep progress (out of 14-16 hours for young babies)
+  const sleepLogs = logs.filter((log) => log.type === 'sleep')
+  const todaySleepMinutes = sleepLogs.reduce((total, log) => {
+    const logDate = new Date(log.timestamp).toDateString()
+    const today = new Date().toDateString()
+    if (logDate === today) {
+      return total + (log.data.duration as number || 0)
+    }
+    return total
+  }, 0)
+  const sleepProgress = Math.min((todaySleepMinutes / (15 * 60)) * 100, 100)
+
+  // Calculate feeding progress (target: 8-12 feedings per day)
+  const feedingLogs = logs.filter((log) => log.type === 'feeding')
+  const todayFeedingCount = feedingLogs.filter((log) => {
+    const logDate = new Date(log.timestamp).toDateString()
+    const today = new Date().toDateString()
+    return logDate === today
+  }).length
+  const feedingProgress = Math.min((todayFeedingCount / 10) * 100, 100)
+
+  // Calculate presence progress (based on play time with presence mode)
+  const playLogs = logs.filter((log) => log.type === 'play')
+  const todayPresenceCount = playLogs.filter((log) => {
+    const logDate = new Date(log.timestamp).toDateString()
+    const today = new Date().toDateString()
+    return logDate === today && (log.data.presenceMode as boolean)
+  }).length
+  const presenceProgress = Math.min((todayPresenceCount / 4) * 100, 100)
+
   return (
     <LogsContext.Provider
       value={{
@@ -195,6 +228,9 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         timelineEntries,
         diaryEntries,
         growthData,
+        sleepProgress,
+        feedingProgress,
+        presenceProgress,
       }}
     >
       {children}
