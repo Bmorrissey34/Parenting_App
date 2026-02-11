@@ -48,14 +48,22 @@ interface ParentingRingsProps {
   sleepProgress: number
   feedingProgress: number
   presenceProgress: number
+  sleepGoal?: number
+  feedingGoal?: number
+  presenceGoal?: number
+  sleepCount?: number
+  feedingCount?: number
+  presenceCount?: number
 }
 
-export function ParentingRings({ sleepProgress, feedingProgress, presenceProgress }: ParentingRingsProps) {
+export function ParentingRings({ sleepProgress, feedingProgress, presenceProgress, sleepGoal = 4, feedingGoal = 6, presenceGoal = 1, sleepCount = 0, feedingCount = 0, presenceCount = 0 }: ParentingRingsProps) {
   const rings = [
     { 
       progress: sleepProgress, 
       label: "Sleep", 
-      value: `${Math.round(sleepProgress)}%`,
+      percentage: `${Math.round(sleepProgress)}%`,
+      count: sleepCount,
+      goal: sleepGoal,
       color: "oklch(0.72 0.12 145)", // Sage green
       icon: Moon,
       size: 180,
@@ -64,7 +72,9 @@ export function ParentingRings({ sleepProgress, feedingProgress, presenceProgres
     { 
       progress: feedingProgress, 
       label: "Feeding", 
-      value: `${Math.round(feedingProgress)}%`,
+      percentage: `${Math.round(feedingProgress)}%`,
+      count: feedingCount,
+      goal: feedingGoal,
       color: "oklch(0.70 0.15 220)", // Soft blue
       icon: Droplets,
       size: 140,
@@ -73,7 +83,9 @@ export function ParentingRings({ sleepProgress, feedingProgress, presenceProgres
     { 
       progress: presenceProgress, 
       label: "Presence", 
-      value: `${Math.round(presenceProgress)}%`,
+      percentage: `${Math.round(presenceProgress)}%`,
+      count: presenceCount,
+      goal: presenceGoal,
       color: "oklch(0.75 0.12 55)", // Warm amber
       icon: Heart,
       size: 100,
@@ -108,7 +120,8 @@ export function ParentingRings({ sleepProgress, feedingProgress, presenceProgres
             />
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">{ring.label}</span>
-              <span className="text-sm font-medium text-foreground">{ring.value}</span>
+              <span className="text-sm font-medium text-foreground">{ring.percentage}</span>
+              <span className="text-xs text-muted-foreground">{ring.count}/{ring.goal}</span>
             </div>
           </div>
         ))}

@@ -11,8 +11,14 @@ import { LogDrawer } from "@/components/log-drawer"
 import { BottomNav } from "@/components/bottom-nav"
 import { FirstChildSetup } from "@/components/first-child-setup"
 import { AddChildDialog } from "@/components/add-child-dialog"
-import { Baby, Bell, Settings, LogOut } from "lucide-react"
+import { Baby, Bell, Settings, LogOut, Check, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth-context"
 import { useChildren } from "@/lib/children-context"
 import { useLogs } from "@/lib/logs-context"
@@ -154,8 +160,8 @@ function LoginForm() {
 
 export default function HomePage() {
   const { user, logout, loading: authLoading } = useAuth()
-  const { activeChild, loading: childrenLoading } = useChildren()
-  const { timelineEntries, diaryEntries, growthData, loading: logsLoading, sleepProgress, feedingProgress, presenceProgress } = useLogs()
+  const { children, activeChild, setActiveChild, loading: childrenLoading } = useChildren()
+  const { timelineEntries, diaryEntries, growthData, loading: logsLoading, sleepProgress, feedingProgress, presenceProgress, sleepGoal, feedingGoal, presenceGoal, sleepCount, feedingCount, presenceCount } = useLogs()
   const [activeTab, setActiveTab] = useState("home")
 
   if (authLoading || childrenLoading) {
@@ -181,6 +187,12 @@ export default function HomePage() {
                 sleepProgress={sleepProgress}
                 feedingProgress={feedingProgress}
                 presenceProgress={presenceProgress}
+                sleepGoal={sleepGoal}
+                feedingGoal={feedingGoal}
+                presenceGoal={presenceGoal}
+                sleepCount={sleepCount}
+                feedingCount={feedingCount}
+                presenceCount={presenceCount}
               />
             </section>
 
@@ -265,15 +277,44 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3 max-w-md mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-primary/10">
-              <Baby className="w-5 h-5 text-primary" />
+          {children.length > 1 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <Baby className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {children.map((child) => (
+                  <DropdownMenuItem
+                    key={child.id}
+                    onClick={() => setActiveChild(child)}
+                    className="cursor-pointer flex items-center justify-between"
+                  >
+                    <span>{child.name}</span>
+                    {activeChild?.id === child.id && <Check className="w-4 h-4" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-primary/10">
+                <Baby className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
-            </div>
-          </div>
+          )}
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
               <Bell className="w-5 h-5" />

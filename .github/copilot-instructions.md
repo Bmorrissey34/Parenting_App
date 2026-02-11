@@ -8,8 +8,8 @@ Purpose: Help AI coding agents work productively in this Next.js + Tailwind proj
 - Aliases: Use `@/*` for imports (see `tsconfig.json`).
 
 ## Architecture & Patterns
-- App shell: [app/layout.tsx](app/layout.tsx) wraps with `AuthProvider` → `LogsProvider` + includes `./globals.css` and `@vercel/analytics`.
-- Page composition: [app/page.tsx](app/page.tsx) renders `LoginForm` if unauthenticated, else manages `activeTab` and conditionally renders domain components (e.g., `ParentingRings`, `DailyTimeline`, `GrowthChart`, `DiaryJournal`, `AgesStages`, `PresenceMode`). Most are client components (`"use client"`).
+- App shell: `app/layout.tsx` sets `<html class="dark">` and includes `./globals.css` plus `@vercel/analytics`.
+- Page composition: `app/page.tsx` manages a local `activeTab` and conditionally renders domain components (e.g., `ParentingRings`, `DailyTimeline`, `GrowthChart`, `DiaryJournal`, `AgesStages`, `PresenceMode`). Most are client components (`"use client"`).
 - Domain vs UI:
   - Domain components live in `components/*.tsx` and compose UI primitives.
   - UI primitives in `components/ui/*` mirror shadcn patterns (e.g., `button`, `card`, `drawer`, `switch`), built on Radix and Tailwind tokens.
@@ -21,21 +21,9 @@ Purpose: Help AI coding agents work productively in this Next.js + Tailwind proj
 - If you add theme switching, wrap the body with `ThemeProvider` and use `attribute="class"` + `defaultTheme="dark"`. Keep Tailwind `@custom-variant dark` and CSS tokens intact.
 
 ## Data & State
-- **Firebase Auth + Firestore**: User authentication via `lib/auth-context.tsx` (email/password). Logs stored in Firestore collection `logs` with document structure: `{ userId, type, data, timestamp }`.
-- **LogsContext** (`lib/logs-context.tsx`): Real-time listener on Firestore logs; exposes hooks `useAuth()` and `useLogs()` for managing user state and log entries.
-- **Client-side writes**: LogDrawer writes directly to Firestore via `addLog(type, data)` → context updates → components re-render with new data.
-- Logs are transformed into typed props for components (TimelineEntry, DiaryEntry, GrowthDataPoint).
-- Schema: Each log type (feeding, sleep, play, growth, diary) maps to data shape; discriminated union via `LogType`.
-
-## Authentication & Providers
-- **AuthProvider** wraps the app in [app/layout.tsx](app/layout.tsx). Tracks `user`, `loading`, and auth methods (`signup`, `login`, `logout`).
-- **LogsProvider** wraps children to provide context. Real-time Firestore listener auto-syncs logs when user changes.
-- Unauthenticated users see LoginForm component; authenticated users see main app.
-
-## Firebase Setup
-- Config keys stored in `.env.local` (template in repo). Reads `NEXT_PUBLIC_FIREBASE_*` for client initialization in [lib/firebase.ts](lib/firebase.ts).
-- Admin SDK available for future server-side operations (see [app/api/logs/route.ts](app/api/logs/route.ts) for placeholder).
-- Firestore Rules: Set read/write access to `request.auth.uid == resource.data.userId` to limit users to their own logs.
+- Sample data is inline in `app/page.tsx`. There’s no global store or backend.
+- Favor local state + typed props (`DailyTimeline` and `GrowthChart` export prop types). When adding persistence, prefer server routes under `app/api/*` and pass data through props.
+- Pattern reference: `components/log-drawer.tsx` uses a discriminated `LogType` and a `logOptions` map for icon/colors and a single `handleSave()` to normalize payloads.
 
 ## Charts
 - `components/growth-chart.tsx` uses Recharts `ComposedChart` inside `ResponsiveContainer` with OKLCH stroke/fill for theme consistency. Preserve the responsive wrapper and custom gradient when extending.

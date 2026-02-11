@@ -26,8 +26,12 @@ export function FirstChildSetup() {
 
   // Open dialog on first login when no children exist
   useEffect(() => {
-    if (!authLoading && !childrenLoading && user && children.length === 0) {
-      setIsOpen(true)
+    if (!authLoading && !childrenLoading && user) {
+      if (children.length === 0) {
+        setIsOpen(true)
+      } else {
+        setIsOpen(false)
+      }
     }
   }, [authLoading, childrenLoading, user, children.length])
 
