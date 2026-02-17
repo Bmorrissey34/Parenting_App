@@ -1,7 +1,10 @@
 "use client"
 
-import { Moon, Droplets, Baby, Ruler, BookOpen } from "lucide-react"
+import { Moon, Droplets, Baby, Ruler, BookOpen, Pencil, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { LogDrawer } from "@/components/log-drawer"
+import { useLogs } from "@/lib/logs-context"
 
 export interface TimelineEntry {
   id: string
@@ -10,6 +13,7 @@ export interface TimelineEntry {
   time: string
   details?: string
   tags?: string[]
+  rawData?: Record<string, unknown>
 }
 
 const typeConfig = {
@@ -50,6 +54,14 @@ interface DailyTimelineProps {
 }
 
 export function DailyTimeline({ entries }: DailyTimelineProps) {
+  const { deleteLog } = useLogs()
+
+  const handleDelete = async (logId: string) => {
+    const confirmed = window.confirm("Delete this activity?")
+    if (!confirmed) return
+    await deleteLog(logId)
+  }
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium text-muted-foreground px-1">Today&apos;s Activity</h3>
@@ -71,7 +83,29 @@ export function DailyTimeline({ entries }: DailyTimelineProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">{entry.title}</span>
-                    <span className="text-xs text-muted-foreground">{entry.time}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{entry.time}</span>
+                      <LogDrawer
+                        trigger={
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        }
+                        initialLog={{
+                          id: entry.id,
+                          type: entry.type,
+                          data: entry.rawData ?? {},
+                        }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => handleDelete(entry.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   {entry.details && (
                     <p className="text-xs text-muted-foreground mt-0.5">{entry.details}</p>

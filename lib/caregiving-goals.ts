@@ -6,6 +6,13 @@ export interface CaregivingGoals {
   notes: string
 }
 
+export interface GrowthPercentiles {
+  ageRange: string
+  weightPercentileRange: string
+  heightPercentileRange: string
+  notes: string
+}
+
 export const CAREGIVING_GOALS_BY_AGE: CaregivingGoals[] = [
   {
     ageRange: "0-1 month",
@@ -51,6 +58,45 @@ export const CAREGIVING_GOALS_BY_AGE: CaregivingGoals[] = [
   },
 ]
 
+export const GROWTH_PERCENTILES_BY_AGE: GrowthPercentiles[] = [
+  {
+    ageRange: "0-1 month",
+    weightPercentileRange: "5-95",
+    heightPercentileRange: "5-95",
+    notes: "Large variation is normal. Early post-birth weight loss is expected.",
+  },
+  {
+    ageRange: "1-3 months",
+    weightPercentileRange: "10-90",
+    heightPercentileRange: "10-90",
+    notes: "Rapid growth period. Percentile stability matters more than percentile rank.",
+  },
+  {
+    ageRange: "3-6 months",
+    weightPercentileRange: "10-85",
+    heightPercentileRange: "10-85",
+    notes: "Growth velocity slows slightly; breastfed infants may naturally shift percentiles.",
+  },
+  {
+    ageRange: "6-12 months",
+    weightPercentileRange: "10-85",
+    heightPercentileRange: "10-85",
+    notes: "Solids introduction and mobility can temporarily affect growth curves.",
+  },
+  {
+    ageRange: "1-2 years",
+    weightPercentileRange: "5-85",
+    heightPercentileRange: "5-85",
+    notes: "Increased activity often leads to leaner body composition.",
+  },
+  {
+    ageRange: "2-3 years",
+    weightPercentileRange: "5-85",
+    heightPercentileRange: "5-85",
+    notes: "Growth patterns stabilize; consistent tracking over time is key.",
+  },
+]
+
 /**
  * Calculate age in months from a birth date string (YYYY-MM-DD)
  */
@@ -58,10 +104,15 @@ export function getAgeInMonths(birthDateString: string | undefined): number {
   if (!birthDateString) return 0
 
   const birthDate = new Date(birthDateString)
+  if (Number.isNaN(birthDate.getTime())) return 0
   const today = new Date()
 
   let months = (today.getFullYear() - birthDate.getFullYear()) * 12
   months += today.getMonth() - birthDate.getMonth()
+
+  if (today.getDate() < birthDate.getDate()) {
+    months -= 1
+  }
 
   return Math.max(0, months)
 }
@@ -116,6 +167,16 @@ export function getGoalsForAge(ageInMonths: number) {
 export function getGoalsDescription(ageInMonths: number): CaregivingGoals | null {
   return CAREGIVING_GOALS_BY_AGE.find((goal) => {
     const [min, max] = goal.ageRange.split("-").map((x) => parseInt(x, 10))
+    return ageInMonths >= min && ageInMonths <= max
+  }) || null
+}
+
+/**
+ * Get growth percentile ranges for a specific age
+ */
+export function getGrowthPercentilesForAge(ageInMonths: number): GrowthPercentiles | null {
+  return GROWTH_PERCENTILES_BY_AGE.find((percentile) => {
+    const [min, max] = percentile.ageRange.split("-").map((x) => parseInt(x, 10))
     return ageInMonths >= min && ageInMonths <= max
   }) || null
 }

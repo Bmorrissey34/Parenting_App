@@ -4,10 +4,13 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   onSnapshot,
   orderBy,
   query,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore"
 import type { TimelineEntry } from "@/components/daily-timeline"
@@ -17,6 +20,7 @@ import { db } from "./firebase"
 import { useAuth } from "./auth-context"
 import { useChildren } from "./children-context"
 import { getAgeInMonths, getGoalsForAge } from "./caregiving-goals"
+import { calculateHeightPercentile, calculateWeightPercentile } from "./growth-percentiles"
 
 type LogType = "feeding" | "sleep" | "play" | "growth" | "diary"
 
@@ -43,7 +47,10 @@ interface LogsContextType {
   feedingCount: number
   presenceCount: number
   loading: boolean
+  error: string | null
   addLog: (type: LogType, data: Record<string, unknown>) => Promise<void>
+  updateLog: (logId: string, data: Record<string, unknown>) => Promise<void>
+  deleteLog: (logId: string) => Promise<void>
 }
 
 const LogsContext = createContext<LogsContextType | undefined>(undefined)
@@ -70,10 +77,12 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
   const { activeChild } = useChildren()
   const [logs, setLogs] = useState<LogRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user || !activeChild) {
       setLogs([])
+      setError(null)
       setLoading(false)
       return
     }
@@ -89,33 +98,90 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onSnapshot(
       logsQuery,
       (snapshot) => {
-        const fetched = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data() as Omit<LogRecord, "id" | "createdAt">
-          return {
-            id: docSnap.id,
-            ...data,
-            createdAt: toDate((docSnap.data() as { createdAt?: unknown }).createdAt),
-          }
-        })
-        setLogs(fetched)
-        setLoading(false)
+        try {
+          const fetched = snapshot.docs.map((docSnap) => {
+            const data = docSnap.data() as Omit<LogRecord, "id" | "createdAt">
+            return {
+              id: docSnap.id,
+              ...data,
+              createdAt: toDate((docSnap.data() as { createdAt?: unknown }).createdAt),
+            }
+          })
+          setLogs(fetched)
+          setError(null)
+          setLoading(false)
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : "Failed to load logs"
+          console.error("Error processing logs snapshot:", err)
+          setError(errorMessage)
+          setLoading(false)
+        }
       },
-      () => setLoading(false)
+      (err) => {
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch logs"
+        console.error("Error fetching logs:", err)
+        setError(errorMessage)
+        setLoading(false)
+      }
     )
 
     return unsubscribe
   }, [user, activeChild])
 
   const addLog = async (type: LogType, data: Record<string, unknown>) => {
-    if (!user || !activeChild) return
+    if (!user || !activeChild) {
+      throw new Error("User or child not authenticated")
+    }
 
-    await addDoc(collection(db, "logs"), {
-      userId: user.uid,
-      childId: activeChild.id,
-      type,
-      data,
-      createdAt: Timestamp.now(),
-    })
+    try {
+      setError(null)
+      await addDoc(collection(db, "logs"), {
+        userId: user.uid,
+        childId: activeChild.id,
+        type,
+        data,
+        createdAt: Timestamp.now(),
+      })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to add log"
+      console.error("Error adding log:", err)
+      setError(errorMessage)
+      throw err
+    }
+  }
+
+  const updateLog = async (logId: string, data: Record<string, unknown>) => {
+    if (!user || !activeChild) {
+      throw new Error("User or child not authenticated")
+    }
+
+    try {
+      setError(null)
+      await updateDoc(doc(db, "logs", logId), {
+        data,
+      })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to update log"
+      console.error("Error updating log:", err)
+      setError(errorMessage)
+      throw err
+    }
+  }
+
+  const deleteLog = async (logId: string) => {
+    if (!user || !activeChild) {
+      throw new Error("User or child not authenticated")
+    }
+
+    try {
+      setError(null)
+      await deleteDoc(doc(db, "logs", logId))
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete log"
+      console.error("Error deleting log:", err)
+      setError(errorMessage)
+      throw err
+    }
   }
 
   const timelineEntries = useMemo<TimelineEntry[]>(() => {
@@ -126,6 +192,7 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         type: log.type,
         title: "",
         time,
+        rawData: log.data,
       }
 
       switch (log.type) {
@@ -166,7 +233,9 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
           date: formatDate(log.createdAt),
           title: note ? note.slice(0, 32) : "New memory",
           preview: note,
+          note,
           tags: (log.data.tags as string[]) || [],
+          rawData: log.data,
         }
       })
   }, [logs])
@@ -174,13 +243,36 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
   const growthData = useMemo<GrowthDataPoint[]>(() => {
     return logs
       .filter((log) => log.type === "growth")
-      .map((log) => ({
-        date: formatDate(log.createdAt),
-        weight: Number(log.data.weight ?? 0),
-        height: Number(log.data.height ?? 0),
-      }))
+      .map((log) => {
+        const weight = Number(log.data.weight ?? 0)
+        const height = Number(log.data.height ?? 0)
+        
+        let weightPercentile: number | undefined
+        let heightPercentile: number | undefined
+        if (activeChild?.birthDate) {
+          const ageAtMeasurement = getAgeInMonths(activeChild.birthDate)
+          const sex = (activeChild?.sex as "male" | "female") || "male"
+
+          if (weight > 0) {
+            weightPercentile = Math.round(calculateWeightPercentile(weight, ageAtMeasurement, sex))
+          }
+          if (height > 0) {
+            heightPercentile = Math.round(calculateHeightPercentile(height, ageAtMeasurement, sex))
+          }
+        }
+        
+        return {
+          id: log.id,
+          date: formatDate(log.createdAt),
+          weight,
+          height,
+          weightPercentile,
+          heightPercentile,
+          rawData: log.data,
+        }
+      })
       .reverse()
-  }, [logs])
+  }, [logs, activeChild?.birthDate, activeChild?.sex])
 
   const { sleepProgress, feedingProgress, presenceProgress, sleepGoal, feedingGoal, presenceGoal, sleepCount, feedingCount, presenceCount } = useMemo(() => {
     const todayStart = getTodayStart()
@@ -222,7 +314,10 @@ export function LogsProvider({ children }: { children: React.ReactNode }) {
         feedingCount,
         presenceCount,
         loading,
+        error,
         addLog,
+        updateLog,
+        deleteLog,
       }}
     >
       {children}

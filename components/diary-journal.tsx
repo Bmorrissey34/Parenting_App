@@ -1,14 +1,19 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { BookOpen, Calendar, ChevronRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { LogDrawer } from "@/components/log-drawer"
+import { useLogs } from "@/lib/logs-context"
+import { BookOpen, Calendar, ChevronRight, Pencil, Trash2 } from "lucide-react"
 
 export interface DiaryEntry {
   id: string
   date: string
   title: string
   preview: string
+  note: string
   tags: string[]
+  rawData?: Record<string, unknown>
 }
 
 interface DiaryJournalProps {
@@ -24,6 +29,14 @@ const tagColors: Record<string, string> = {
 }
 
 export function DiaryJournal({ entries }: DiaryJournalProps) {
+  const { deleteLog } = useLogs()
+
+  const handleDelete = async (logId: string) => {
+    const confirmed = window.confirm("Delete this diary entry?")
+    if (!confirmed) return
+    await deleteLog(logId)
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
@@ -60,7 +73,29 @@ export function DiaryJournal({ entries }: DiaryJournalProps) {
                   </div>
                 )}
               </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
+              <div className="flex items-center gap-1 flex-shrink-0 mt-1">
+                <LogDrawer
+                  trigger={
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  }
+                  initialLog={{
+                    id: entry.id,
+                    type: "diary",
+                    data: entry.rawData ?? { note: entry.note, tags: entry.tags },
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={() => handleDelete(entry.id)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </div>
             </div>
           </Card>
         ))}

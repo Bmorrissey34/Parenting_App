@@ -2,24 +2,26 @@
 
 import { useState, useEffect } from "react"
 import { useChildren } from "@/lib/children-context"
-import { useAuth } from "@/lib/auth-context"
-import { useToast } from "@/hooks/use-toast"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Baby, AlertCircle } from "lucide-react"
+import { Child } from "@/lib/children-context"
 
-export function FirstChildSetup() {
-  const { user, loading: authLoading } = useAuth()
-  const { children, loading: childrenLoading, addChild } = useChildren()
-  const { toast } = useToast()
+interface EditChildDialogProps {
+  child: Child
+  children: React.ReactNode
+}
+
+export function EditChildDialog({ child, children: trigger }: EditChildDialogProps) {
+  const { editChild } = useChildren()
   const [childName, setChildName] = useState("")
   const [birthDate, setBirthDate] = useState("")
   const [sex, setSex] = useState<"male" | "female" | "">("")
@@ -27,50 +29,18 @@ export function FirstChildSetup() {
   const [error, setError] = useState("")
   const [isOpen, setIsOpen] = useState(false)
 
-  // Open dialog on first login when no children exist
   useEffect(() => {
-    if (!authLoading && !childrenLoading && user) {
-      if (children.length === 0) {
-        setIsOpen(true)
-      } else {
-        setIsOpen(false)
-      }
+    if (child) {
+      setChildName(child.name)
+      setBirthDate(child.birthDate || "")
+      setSex(child.sex || "")
     }
-  }, [authLoading, childrenLoading, user, children.length])
+  }, [child])
 
-  const handleAddChild = async (e: React.FormEvent) => {
+  const handleEditChild = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validation
     if (!childName.trim()) {
       setError("Please enter your child's name")
-      toast({
-        title: "Validation Error",
-        description: "Please enter your child's name",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validate birth date format if provided
-    if (birthDate && isNaN(new Date(birthDate).getTime())) {
-      setError("Please enter a valid birth date")
-      toast({
-        title: "Validation Error",
-        description: "Please enter a valid birth date",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Ensure birth date is not in the future
-    if (birthDate && new Date(birthDate) > new Date()) {
-      setError("Birth date cannot be in the future")
-      toast({
-        title: "Validation Error",
-        description: "Birth date cannot be in the future",
-        variant: "destructive",
-      })
       return
     }
 
@@ -78,28 +48,14 @@ export function FirstChildSetup() {
     setIsLoading(true)
 
     try {
-      await addChild(
-        childName,
-        birthDate || undefined,
-        sex ? (sex as "male" | "female") : undefined
-      )
+      await editChild(child.id, {
+        name: childName,
+        birthDate: birthDate || undefined,
+        sex: sex ? (sex as "male" | "female") : undefined,
+      })
       setIsOpen(false)
-      setChildName("")
-      setBirthDate("")
-      setSex("")
-      toast({
-        title: "Success",
-        description: "Let's start tracking your child's journey!",
-      })
     } catch (err) {
-      const errorMessage = (err as Error).message || "Failed to add child"
-      setError(errorMessage)
-      console.error("Error adding child:", err)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      setError((err as Error).message || "Failed to edit child")
     } finally {
       setIsLoading(false)
     }
@@ -107,20 +63,16 @@ export function FirstChildSetup() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 rounded-full bg-primary/10">
-              <Baby className="w-6 h-6 text-primary" />
-            </div>
-          </div>
-          <DialogTitle className="text-center text-xl">Welcome to Nurture!</DialogTitle>
-          <DialogDescription className="text-center">
-            Let's add your first child to get started
+          <DialogTitle>Edit Child</DialogTitle>
+          <DialogDescription>
+            Update your child's information.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleAddChild} className="space-y-4">
+        <form onSubmit={handleEditChild} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="childName" className="text-sm font-medium">
               Child's Name *
@@ -175,16 +127,16 @@ export function FirstChildSetup() {
             </div>
           </div>
 
-          {error && (
-            <div className="flex gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive">{error}</p>
-            </div>
-          )}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <Button className="w-full h-10" type="submit" disabled={isLoading}>
-            {isLoading ? "Adding..." : "Add Child"}
-          </Button>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

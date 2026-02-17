@@ -17,19 +17,24 @@ import {
 } from "recharts"
 
 export interface GrowthDataPoint {
+  id?: string
   date: string
   weight?: number
   height?: number
-  percentile?: number
+  weightPercentile?: number
+  heightPercentile?: number
+  rawData?: Record<string, unknown>
 }
 
 interface GrowthChartProps {
   data: GrowthDataPoint[]
   currentWeight?: number
   currentHeight?: number
+  currentWeightPercentile?: number
+  currentHeightPercentile?: number
 }
 
-export function GrowthChart({ data, currentWeight, currentHeight }: GrowthChartProps) {
+export function GrowthChart({ data, currentWeight, currentHeight, currentWeightPercentile, currentHeightPercentile }: GrowthChartProps) {
   const [activeMetric, setActiveMetric] = useState<"weight" | "height">("weight")
 
   const chartConfig = {
@@ -49,6 +54,33 @@ export function GrowthChart({ data, currentWeight, currentHeight }: GrowthChartP
 
   const config = chartConfig[activeMetric]
   const Icon = config.icon
+
+  const renderTooltip = ({ label, payload }: { label?: string; payload?: Array<{ value?: number }> }) => {
+    const value = payload?.[0]?.value
+    if (value == null) return null
+
+    return (
+      <div
+        style={{
+          margin: 0,
+          padding: 10,
+          backgroundColor: "oklch(0.17 0.008 260)",
+          border: "1px solid oklch(0.25 0.01 260)",
+          whiteSpace: "nowrap",
+          borderRadius: 12,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+        }}
+      >
+        {label && (
+          <p style={{ margin: 0, color: "oklch(0.95 0.01 260)", fontWeight: 500 }}>{label}</p>
+        )}
+        <div style={{ paddingTop: 4, color: config.color }}>
+          {config.label}: {value}
+          {config.unit}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border">
@@ -99,7 +131,17 @@ export function GrowthChart({ data, currentWeight, currentHeight }: GrowthChartP
               <span className="text-xs text-muted-foreground">Percentile</span>
             </div>
             <p className="text-xl font-semibold text-foreground mt-1">
-              75<span className="text-sm font-normal text-muted-foreground ml-1">th</span>
+              {activeMetric === "weight" && currentWeightPercentile != null
+                ? currentWeightPercentile
+                : activeMetric === "height" && currentHeightPercentile != null
+                  ? currentHeightPercentile
+                  : "-"}
+              {activeMetric === "weight" && currentWeightPercentile != null && (
+                <span className="text-sm font-normal text-muted-foreground ml-1">th</span>
+              )}
+              {activeMetric === "height" && currentHeightPercentile != null && (
+                <span className="text-sm font-normal text-muted-foreground ml-1">th</span>
+              )}
             </p>
           </div>
         </div>
@@ -132,14 +174,7 @@ export function GrowthChart({ data, currentWeight, currentHeight }: GrowthChartP
                 domain={['dataMin - 1', 'dataMax + 1']}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "oklch(0.17 0.008 260)",
-                  border: "1px solid oklch(0.25 0.01 260)",
-                  borderRadius: "12px",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
-                }}
-                labelStyle={{ color: "oklch(0.95 0.01 260)", fontWeight: 500 }}
-                itemStyle={{ color: config.color }}
+                content={renderTooltip}
               />
               <Area
                 type="monotone"

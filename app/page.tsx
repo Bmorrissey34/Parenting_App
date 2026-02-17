@@ -10,22 +10,25 @@ import { PresenceMode } from "@/components/presence-mode"
 import { LogDrawer } from "@/components/log-drawer"
 import { BottomNav } from "@/components/bottom-nav"
 import { FirstChildSetup } from "@/components/first-child-setup"
-import { AddChildDialog } from "@/components/add-child-dialog"
-import { Baby, Bell, Settings, LogOut, Check, ChevronDown } from "lucide-react"
+import { EditChildDialog } from "@/components/edit-child-dialog"
+import { Baby, Bell, LogOut, Check, ChevronDown, Pencil, Trash2, Settings, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/lib/auth-context"
 import { useChildren } from "@/lib/children-context"
 import { useLogs } from "@/lib/logs-context"
+import { useToast } from "@/hooks/use-toast"
 
 // Login form component
 function LoginForm() {
   const { login, signup, loginWithGoogle } = useAuth()
+  const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isSignup, setIsSignup] = useState(false)
@@ -34,17 +37,64 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validation
+    if (!email.trim()) {
+      setError("Please enter your email")
+      toast({
+        title: "Validation Error",
+        description: "Please enter your email",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!password.trim()) {
+      setError("Please enter your password")
+      toast({
+        title: "Validation Error",
+        description: "Please enter your password",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters")
+      toast({
+        title: "Validation Error",
+        description: "Password must be at least 6 characters",
+        variant: "destructive",
+      })
+      return
+    }
+
     setError("")
     setIsLoading(true)
 
     try {
       if (isSignup) {
         await signup(email, password)
+        toast({
+          title: "Success",
+          description: "Account created successfully!",
+        })
       } else {
         await login(email, password)
+        toast({
+          title: "Success",
+          description: "Logged in successfully!",
+        })
       }
     } catch (err) {
-      setError((err as Error).message || "Authentication failed")
+      const errorMessage = (err as Error).message || "Authentication failed"
+      setError(errorMessage)
+      console.error("Auth error:", err)
+      toast({
+        title: "Authentication Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -55,8 +105,19 @@ function LoginForm() {
     setIsLoading(true)
     try {
       await loginWithGoogle()
+      toast({
+        title: "Success",
+        description: "Signed in with Google!",
+      })
     } catch (err) {
-      setError((err as Error).message || "Google sign-in failed")
+      const errorMessage = (err as Error).message || "Google sign-in failed"
+      setError(errorMessage)
+      console.error("Google auth error:", err)
+      toast({
+        title: "Google Sign-In Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -100,7 +161,12 @@ function LoginForm() {
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <div className="flex gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
 
           <Button className="w-full h-10 rounded-lg" type="submit" disabled={isLoading}>
             {isLoading ? "Loading..." : isSignup ? "Sign Up" : "Sign In"}
@@ -160,9 +226,21 @@ function LoginForm() {
 
 export default function HomePage() {
   const { user, logout, loading: authLoading } = useAuth()
-  const { children, activeChild, setActiveChild, loading: childrenLoading } = useChildren()
-  const { timelineEntries, diaryEntries, growthData, loading: logsLoading, sleepProgress, feedingProgress, presenceProgress, sleepGoal, feedingGoal, presenceGoal, sleepCount, feedingCount, presenceCount } = useLogs()
+  const { children, activeChild, setActiveChild, loading: childrenLoading, deleteChild } = useChildren()
+  const { timelineEntries, diaryEntries, growthData, loading: logsLoading, sleepProgress, feedingProgress, presenceProgress, sleepGoal, feedingGoal, presenceGoal, sleepCount, feedingCount, presenceCount, deleteLog } = useLogs()
   const [activeTab, setActiveTab] = useState("home")
+  const handleDeleteChild = async (childId: string) => {
+    const confirmed = window.confirm("Delete this child profile?")
+    if (!confirmed) return
+    await deleteChild(childId)
+  }
+
+  const handleDeleteLog = async (logId?: string) => {
+    if (!logId) return
+    const confirmed = window.confirm("Delete this measurement?")
+    if (!confirmed) return
+    await deleteLog(logId)
+  }
 
   if (authLoading || childrenLoading) {
     return (
@@ -215,6 +293,8 @@ export default function HomePage() {
               data={growthData}
               currentWeight={growthData[growthData.length - 1]?.weight || 0}
               currentHeight={growthData[growthData.length - 1]?.height || 0}
+              currentWeightPercentile={growthData[growthData.length - 1]?.weightPercentile}
+              currentHeightPercentile={growthData[growthData.length - 1]?.heightPercentile}
             />
             <section className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground px-1">Recent Measurements</h3>
@@ -233,6 +313,49 @@ export default function HomePage() {
                     <span className="text-sm font-normal text-muted-foreground">cm</span>
                   </p>
                 </div>
+              </div>
+            </section>
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground px-1">Measurement Log</h3>
+              <div className="space-y-2">
+                {growthData.slice(-5).reverse().map((entry) => {
+                  const logId = entry.id
+                  return (
+                  <div key={entry.id ?? entry.date} className="flex items-center justify-between p-3 rounded-2xl bg-card/50 border border-border">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {entry.weight ?? "-"} kg · {entry.height ?? "-"} cm
+                      </p>
+                      <p className="text-xs text-muted-foreground">{entry.date}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {logId && (
+                        <LogDrawer
+                          trigger={
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          }
+                          initialLog={{
+                            id: logId,
+                            type: "growth",
+                            data: entry.rawData ?? { weight: entry.weight ?? 0, height: entry.height ?? 0 },
+                          }}
+                        />
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => handleDeleteLog(logId)}
+                        disabled={!logId}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  )
+                })}
               </div>
             </section>
           </div>
@@ -277,44 +400,77 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3 max-w-md mx-auto">
-          {children.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <Baby className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
+          <div className="flex items-center group">
+            {children.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+                    <div className="p-2 rounded-full bg-primary/10">
+                      <Baby className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
+                      <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
                 {children.map((child) => (
-                  <DropdownMenuItem
-                    key={child.id}
-                    onClick={() => setActiveChild(child)}
-                    className="cursor-pointer flex items-center justify-between"
-                  >
-                    <span>{child.name}</span>
-                    {activeChild?.id === child.id && <Check className="w-4 h-4" />}
-                  </DropdownMenuItem>
+                  <div key={child.id} className="group flex items-center">
+                    <DropdownMenuItem
+                      onClick={() => setActiveChild(child)}
+                      className="cursor-pointer flex-1 flex items-center justify-between"
+                    >
+                      <span>{child.name}</span>
+                      {activeChild?.id === child.id && <Check className="w-4 h-4" />}
+                    </DropdownMenuItem>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="mr-1 h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(event) => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <EditChildDialog child={child}>
+                          <DropdownMenuItem 
+                            className="cursor-pointer"
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            Edit Profile
+                          </DropdownMenuItem>
+                        </EditChildDialog>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          variant="destructive"
+                          onClick={() => handleDeleteChild(child.id)}
+                        >
+                          Delete Profile
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 ))}
               </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Baby className="w-5 h-5 text-primary" />
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Baby className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-sm font-semibold text-foreground">{activeChild?.name || "My Child"}</h1>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
               <Bell className="w-5 h-5" />
